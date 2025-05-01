@@ -29,8 +29,7 @@ https://napari.org/stable/plugins/index.html
 ### clone this github repository
 
 ```
-git clone https://github.com/yin-n/zencell.git
-
+git clone https://github.com/yin-n/zencell_plugin.git
 ```
 
 
@@ -99,15 +98,15 @@ default_weights_path = "/mnt/aperto/yin/sam_sc_ckpt/latest.pt"
 
 ```
 
-git clone https://github.com/computational-cell-analytics/micro-sam
+#git clone https://github.com/computational-cell-analytics/micro-sam
 
-cd micro-sam
+cd /src/micro-sam
 
 conda env create -f environment.yaml
 
 conda activate sam
 
-pip install -e .
+#pip install -e .
 
 pip uninstall torch torchvision torchaudio -y
 
@@ -125,27 +124,7 @@ cd zencell
 pip install -e .
 
 ```
-## Usage
 
-```
-e.g.
-
-whole brain path: /mnt/aperto/tatz_brain_data/240620_01_MX007-1/fused.zarr
-
-channels: 3,2
-
-z, y, x(start): 1000 1000 1000
-
-block size: 40 1024 1024
-
-z, y, x(end):1040 2024 2024
-
-output path: /mnt/aperto/yin/zencell_output
-
-model checkpoints path: /mnt/aperto/yin/zencell_ckpt/checkpoint-4999.pth
-
-
-```
 ### Visualization
 
 ####  TODO 

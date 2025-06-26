@@ -10,6 +10,12 @@ from . import _widgets as widgets
 from ._state import AnnotatorState
 from ._annotator import _AnnotatorBase
 from .util import _initialize_parser, _sync_embedding_widget
+from qtpy.QtWidgets import QPushButton, QVBoxLayout, QWidget
+from qtpy.QtWidgets import QFileDialog
+import tifffile
+import re
+import pandas as pd
+import os
 
 
 class Annotator2d(_AnnotatorBase):
@@ -17,12 +23,188 @@ class Annotator2d(_AnnotatorBase):
         autosegment = widgets.AutoSegmentWidget(
             self._viewer, with_decoder=AnnotatorState().decoder is not None, volumetric=False
         )
+        #----------------------------------------------
+        # [CHANGE!] add a saving widget to the annotator
+        # "save": save_widget
+        #----------------------------------------------
+        save_widget = self._create_save_widget()
         return {
             "segment": widgets.segment(),
             "autosegment": autosegment,
             "commit": widgets.commit(),
             "clear": widgets.clear(),
+            "save": save_widget,  # add saving widget
         }
+    #----------------------------------------------
+    # [CHANGE!] create a widget for saving segmentation results
+    def _create_save_widget(self):
+        """create combine and saving widget"""
+       
+        widget = QWidget()
+        layout = QVBoxLayout()
+        
+        save_button = QPushButton("Combine and Save!")
+        save_button.clicked.connect(self._save_current_segmentation)
+        
+        layout.addWidget(save_button)
+        widget.setLayout(layout)
+        
+        return widget
+    #----------------------------------------------
+    # [CHANGE!] saving function for combined segmentation
+    def _save_current_segmentation(self):
+
+        """Saving the combined segmentation (committed + MAE_pseudo with offset)"""
+        try:
+            # get data from commited_objects layer
+            committed_layer = None
+            for layer in self._viewer.layers:
+                if hasattr(layer, 'name') and 'committed_objects' in layer.name:
+                    committed_layer = layer
+                    break
+            
+            # get MAE_pseudo layer data
+            
+            # Corrected pattern
+            mae_pattern = re.compile(r'^\d+_MAE_pseudo_\d+_\d+_\d+$')
+            mae_pseudo_layer = None
+            for layer in self._viewer.layers:
+                if hasattr(layer, 'name') and mae_pattern.match(layer.name):
+                    mae_pseudo_layer = layer
+                    
+                    break
+            
+            # Check whether one of the layers is found
+            if committed_layer is None and mae_pseudo_layer is None:
+                print("No segmentation layers found to save")
+                return
+            
+            # choose saving file path
+            id = int(mae_pseudo_layer.name.split('_')[0])
+            file_path, _ = QFileDialog.getSaveFileName(
+                None, 
+                "Save Combined Segmentation", 
+                f"{id}_combined_segmentation.tif", 
+                "TIFF files (*.tif *.tiff);;NumPy files (*.npy);;All files (*.*)"
+            )
+            
+            if file_path:
+                combined_segmentation = None
+                
+                if committed_layer is not None:
+                    committed_data = committed_layer.data
+                    # if dask array, compute it
+                    if hasattr(committed_data, 'compute'):
+                        committed_data = committed_data.compute()
+                    
+                    combined_segmentation = committed_data.copy()
+                    committed_max = int(committed_data.max())
+                    print(f"Committed objects max value: {committed_max}")
+                else:
+                    # if no committed layer, initialize combined_segmentation
+                    if mae_pseudo_layer is not None:
+                        mae_data = mae_pseudo_layer.data
+                        if hasattr(mae_data, 'compute'):
+                            mae_data = mae_data.compute()
+                        combined_segmentation = np.zeros_like(mae_data)
+                        committed_max = 0
+                
+                if mae_pseudo_layer is not None:
+                    mae_pseudo_data = mae_pseudo_layer.data
+                    # Dask array processing
+                    if hasattr(mae_pseudo_data, 'compute'):
+                        mae_pseudo_data = mae_pseudo_data.compute()
+                    
+                    # create MAE_pseudo mask
+                    mae_mask = mae_pseudo_data > 0
+                    
+                    # MAE_pseudo add offset
+                    mae_offset_data = mae_pseudo_data.copy()
+                    mae_offset_data[mae_mask] += committed_max
+
+                    # cut MAE_pseudo_layer data
+                    mae_pseudo_layer_shape = mae_pseudo_layer.data.shape
+                    z_center = int(mae_pseudo_layer.name.split('_')[-3])
+                    y_patch = int(mae_pseudo_layer.name.split('_')[-2])
+                    x_patch = int(mae_pseudo_layer.name.split('_')[-1])
+                    
+                    y_center = mae_pseudo_layer_shape[1] // 2
+                    x_center = mae_pseudo_layer_shape[2] // 2
+                    mae_offset_data = mae_offset_data[z_center,y_center - y_patch: y_center + y_patch, x_center - x_patch: x_center + x_patch]
+                    
+                    # make sure combined_segmentation shape is correct
+                    if combined_segmentation is None:
+                        combined_segmentation = mae_offset_data
+                    else:
+                        # check whether shapes match
+                        if combined_segmentation.shape != mae_offset_data.shape:
+                            print(f"Warning: Shape mismatch! Committed: {combined_segmentation.shape}, MAE: {mae_offset_data.shape}")
+                            # cut to the same shape
+                            combined_segmentation = combined_segmentation[y_center - y_patch: y_center + y_patch, x_center - x_patch: x_center + x_patch]
+                        
+
+                        combined_segmentation += mae_offset_data
+                    
+                    mae_max = int(mae_offset_data.max())
+                    print(f"MAE pseudo max value after offset: {mae_max}")
+                
+                # save the combined segmentation
+                if ext := file_path.split('.')[-1] == 'npy':
+                    np.save(file_path, combined_segmentation)
+                else:
+                    try:
+                        tifffile.imwrite(file_path, combined_segmentation.astype(np.uint16))
+                    except ImportError:
+                        from PIL import Image
+                        Image.fromarray(combined_segmentation.astype(np.uint16)).save(file_path)
+                
+                # print some information about the saved segmentation
+                unique_values = np.unique(combined_segmentation)
+                print(f"Combined segmentation saved to: {file_path}")
+                print(f"Combined segmentation shape: {combined_segmentation.shape}")
+                print(f"Total unique objects: {len(unique_values) - 1}") 
+                print(f"Value range: {unique_values.min()} - {unique_values.max()}")
+                # TODO need to save image
+                for layer in self._viewer.layers:
+                    if hasattr(layer, 'name') and 'FoV - Signal' in layer.name:
+                        fov_sig = layer.data
+                        fov_sig = fov_sig.compute() if hasattr(fov_sig, 'compute') else fov_sig
+                        fov_sig = fov_sig[z_center,y_center - y_patch: y_center + y_patch, x_center - x_patch: x_center + x_patch]
+                        break
+                
+                for layer in self._viewer.layers:
+                    if hasattr(layer, 'name') and 'FoV - Reference' in layer.name:
+                        fov_ref = layer.data
+                        fov_ref = fov_ref.compute() if hasattr(fov_ref, 'compute') else fov_ref
+                        fov_ref = fov_ref[z_center,y_center - y_patch: y_center + y_patch, x_center - x_patch: x_center + x_patch]
+                        break
+                #---------------------------------------------------------------------------
+                # save image and information 
+                
+                img = np.stack([fov_ref, fov_sig], axis=0)  # shape: (2, H, W)
+                if file_path.endswith('.npy'):
+                    image_tif_path = file_path.replace('.npy', '_image.tif')
+                image_tif_path = file_path.replace('.tif', '_image.tif')
+
+                tifffile.imwrite(image_tif_path, img)
+
+                # also need to save the information about the segmentation
+              
+                cur_df = pd.read_csv("./meta_info/current_points.csv")
+
+               
+                folder = os.path.dirname(image_tif_path)
+                csv_path = os.path.join(folder, "all_points.csv")
+
+                all_csv = pd.read_csv(csv_path) if os.path.exists(csv_path) else pd.DataFrame(columns=cur_df.columns)
+                all_csv = pd.concat([all_csv, cur_df], ignore_index=True, sort=False)
+                all_csv.to_csv(csv_path, index=False)
+        
+        except Exception as e:
+            print(f"Error saving combined segmentation: {e}")
+            import traceback
+            traceback.print_exc()
+
     
     # TODO change here to add default checkpoint path 
     def _create_widgets(self):
@@ -36,6 +218,9 @@ class Annotator2d(_AnnotatorBase):
         # add default device
         self._widgets["embeddings"].device = "cuda"
         self._widgets["embeddings"].device_dropdown.setCurrentText("cuda")
+   
+
+
 
     def __init__(self, viewer: "napari.viewer.Viewer") -> None:
         super().__init__(viewer=viewer, ndim=2)

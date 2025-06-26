@@ -36,6 +36,12 @@ contributions:
     - id: zencell.inference_2d
       python_name: zencell:InferQWidget2D
       title: 2D inference with context
+    - id: zencell.crop_2d
+      python_name: zencell:CropQWidget2D
+      title: 2D crop with context
+    - id: zencell.sam_3d
+      python_name: zencell:SAMQWidget3D
+      title: 3D prompt predictoin
   readers:
     - command: zencell.get_reader
       accepts_directories: false
@@ -52,9 +58,15 @@ contributions:
       display_name: Zencell
       key: unique_id.1
   widgets:
-    - command: zencell.inference_3d
-      display_name: 3D segmentation
-      #icon: zencell/_icons/inference.png
     - command: zencell.inference_2d
       display_name: 2D segmentation
       #icon: zencell/_icons/inference.png
+    - command: zencell.inference_3d
+      display_name: 3D segmentation
+      #icon: zencell/_icons/inference.png
+    - command: zencell.crop_2d
+      display_name: 2D Crop
+    - command: zencell.sam_3d
+      display_name: SAM 3D
+
+      #icon: zencell/_icons/inference.png 

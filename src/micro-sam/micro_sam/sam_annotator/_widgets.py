@@ -540,6 +540,28 @@ def _commit_impl(viewer, layer, preserve_mode, preservation_threshold):
     # Write the current object to committed objects.
     seg[mask] += id_offset
     viewer.layers["committed_objects"].data[bb][mask] = seg[mask]
+
+    # ---------------------------------------------------------
+    # [CHANGE!] when segmentation need to be offset:
+    patch_x = 0
+    patch_y = 0
+
+    target_shape_x = viewer.layers["FoV - Signal"].data.shape[-1]
+    target_shape_y = viewer.layers["FoV - Signal"].data.shape[-2]
+    segment_shape_x = viewer.layers["Segment - Plane"].data.shape[-1]
+    segment_shape_y = viewer.layers["Segment - Plane"].data.shape[-2]
+
+    if segment_shape_x < target_shape_x:
+        patch_x = (target_shape_x - segment_shape_x) // 2
+
+    if segment_shape_y < target_shape_y:
+        patch_y = (target_shape_y - segment_shape_y) // 2
+
+    print('patch_x is: ',patch_x, " patch_y is: ", patch_y)
+
+    committed_objects_layer = viewer.layers["committed_objects"]
+    committed_objects_layer.translate = (patch_y, patch_x) 
+    print(f"Set 'current_object' layer translate to: ({patch_y}, {patch_x})")
     viewer.layers["committed_objects"].refresh()
 
     return id_offset, seg, mask, bb
@@ -763,7 +785,7 @@ def commit(
         )
         viewer.layers["auto_segmentation"].refresh()
         _select_layer(viewer, "committed_objects")
-
+   
     # Perform garbage collection
     gc.collect()
 
@@ -991,10 +1013,38 @@ def segment(viewer: "napari.viewer.Viewer", batched: bool = False) -> None:
     boxes, masks = vutil.shape_layer_to_prompts(viewer.layers["prompts"], shape)
     points, labels = vutil.point_layer_to_prompts(viewer.layers["point_prompts"], with_stop_annotation=False)
 
+    #---------------------------------------------------------------------------
+    # [CHANGE!] start of change
+    # TODO the points here need to be matched with the image embeddings.
+
+    patch_x = 0
+    patch_y = 0
+
+    target_shape_x = viewer.layers["FoV - Signal"].data.shape[-1]
+    target_shape_y = viewer.layers["FoV - Signal"].data.shape[-2]
+    segment_shape_x = viewer.layers["Segment - Plane"].data.shape[-1]
+    segment_shape_y = viewer.layers["Segment - Plane"].data.shape[-2]
+
+    if segment_shape_x < target_shape_x: 
+        patch_x = (target_shape_x - segment_shape_x) // 2
+
+    if segment_shape_y < target_shape_y: 
+        patch_y = (target_shape_y - segment_shape_y) // 2
+
+    print('patch_x is: ',patch_x, " patch_y is: ", patch_y)
+
+    points_copy = points.copy() 
+
+    for i in range(len(points_copy)):
+        points_copy[i, 0] -= patch_x
+        points_copy[i, 1] -= patch_y
+
+    #print('debug!! adjusted points_copy:', points_copy)
+
     predictor = AnnotatorState().predictor
     image_embeddings = AnnotatorState().image_embeddings
     seg = vutil.prompt_segmentation(
-        predictor, points, labels, boxes, masks, shape, image_embeddings=image_embeddings,
+        predictor, points_copy, labels, boxes, masks, shape, image_embeddings=image_embeddings,
         multiple_box_prompts=True, batched=batched, previous_segmentation=viewer.layers["current_object"].data,
     )
 
@@ -1004,7 +1054,14 @@ def segment(viewer: "napari.viewer.Viewer", batched: bool = False) -> None:
         return
 
     viewer.layers["current_object"].data = seg
+    #--------------------------------------------------------
+    # [CHANGE!] translate the current_object layer to offset position
+    #--------------------------------------------------------
+    current_object_layer = viewer.layers["current_object"]
+    current_object_layer.translate = (patch_y, patch_x) 
     viewer.layers["current_object"].refresh()
+
+    #print(f"Set 'current_object' layer translate to: ({patch_y}, {patch_x})")
 
 
 @magic_factory(call_button="Segment Slice [S]")
@@ -1385,8 +1442,8 @@ class EmbeddingWidget(_WidgetBase):
 
         # Get the image.
         image = self.image_selection.get_value()
+        image_data = image.data
 
-        # Update the image embeddings:
         state = AnnotatorState()
         if self._validate_existing_embeddings(state):
             # Whether embeddings already exist to control existing objects in layers.
@@ -1411,7 +1468,7 @@ class EmbeddingWidget(_WidgetBase):
         # Process tile_shape and halo, set other data.
         tile_shape, halo = _process_tiling_inputs(self.tile_x, self.tile_y, self.halo_x, self.halo_y)
         save_path = None if self.embeddings_save_path == "" else self.embeddings_save_path
-        image_data = image.data
+        #image_data = image.data
 
         # Set up progress bar and signals for using it within a threadworker.
         pbar, pbar_signals = _create_pbar_for_threadworker()

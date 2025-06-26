@@ -1,4 +1,4 @@
-name: zen_sam
+name: zen_sam3d
 channels:
     - conda-forge
 dependencies:

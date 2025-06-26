@@ -1,0 +1,2 @@
+id,point,vis_z,vis_y,vis_x,seg_y,seg_x,ref_chn,sig_chn,brain_path
+0,"[1391, 4074, 1978]",40,768,768,256,256,3,2,/mnt/aperto/tatz_brain_data/240620_01_MX007-1/fused.zarr

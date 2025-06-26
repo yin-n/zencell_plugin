@@ -1462,6 +1462,15 @@ class EmbeddingWidget(_WidgetBase):
             ndim = image.data.ndim
             state.image_shape = image.data.shape
 
+        #[CHANGE!] the ndim also need to change when the image is 2D but add 0 at first dimension
+         #[CHANGE!] check if image_data is 2D or 3D, and if it is RGB
+        # print('image_data.ndim:', image_data.ndim)
+        # if image_data.ndim > 2:
+        #     image_data = image_data.squeeze()  # Remove singleton dimensions if any.
+        #     ndim = image_data.ndim
+
+        # print('image_data.shape:', image_data.shape)
+
         # Set layer scale
         state.image_scale = tuple(image.scale)
 

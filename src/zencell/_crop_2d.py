@@ -711,6 +711,13 @@ class CropQWidget2D(QWidget):
             blending="additive",
             translate=(offset_y, offset_x)
         )
+        # seg_layer = self._viewer_cropped.add_image(
+        #     segmen_2d[np.newaxis],  # 加上 np.newaxis 让它变成 (1, H, W)，也就是一个单层的 3D 图像
+        #     name="Segment - Plane",
+        #     colormap="green",
+        #     blending="additive",
+        #     translate=(z_center, offset_y, offset_x),  # z_value 是你希望显示在的 z 层
+        # )
 
         center_z = z_center
         center_y = offset_y + segmen_2d.shape[0] / 2

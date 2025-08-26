@@ -679,8 +679,8 @@ class CropQWidget2D(QWidget):
         sig_chn = int(sig_channel_value)
 
         zarr_file= da.from_zarr(zarr.open(zarr_path, mode="r")['0'])
-        img_ref = zarr_file[ref_chn][zmin : zmax, ymin:ymax, xmin:xmax]
-        img_sig = zarr_file[sig_chn][zmin : zmax, ymin:ymax, xmin:xmax]
+        img_ref = zarr_file[ref_chn][zmin : zmax, ymin:ymax, xmin:xmax].compute()
+        img_sig = zarr_file[sig_chn][zmin : zmax, ymin:ymax, xmin:xmax].compute()
 
         self._viewer_cropped.add_image(img_ref, name="FoV - Reference",colormap = "magenta", blending="additive")
         self._viewer_cropped.add_image(img_sig, name="FoV - Signal", colormap="green", blending="additive")
@@ -704,13 +704,13 @@ class CropQWidget2D(QWidget):
         offset_y = patch_y - seg_patch_y
         offset_x = patch_x - seg_patch_x
 
-        seg_layer = self._viewer_cropped.add_image(
-            segmen_2d,
-            name="Segment - Plane",
-            colormap="green",
-            blending="additive",
-            translate=(offset_y, offset_x)
-        )
+        # seg_layer = self._viewer_cropped.add_image(
+        #     segmen_2d,
+        #     name="Segment - Plane",
+        #     colormap="green",
+        #     blending="additive",
+        #     translate=(offset_y, offset_x)
+        # )
         # seg_layer = self._viewer_cropped.add_image(
         #     segmen_2d[np.newaxis],  # 加上 np.newaxis 让它变成 (1, H, W)，也就是一个单层的 3D 图像
         #     name="Segment - Plane",

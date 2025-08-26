@@ -11,6 +11,8 @@ from PyQt5 import QtGui
 from ome_zarr.io import parse_url      
 from ome_zarr.reader import Reader  
 
+import pandas as pd
+
 from zencell.zencell_model import models_vit
 from zencell.zencell_model.cellpose.dynamics import compute_masks
 
@@ -513,10 +515,6 @@ class InferQWidget2D(QWidget):
         # get new points in the layer
         cur_points = select_point
 
-        # old_set = set(self._segemented_points)
-        # new_set = set(cur_points)
-        # added = new_set - old_set
-
         resolution = int(self.resolution_combo.currentText().split()[0])
 
         # segment area
@@ -543,7 +541,9 @@ class InferQWidget2D(QWidget):
         for idx in selected_indices:
             point = self.points_layer.data[idx]
            
-            z0, y0, x0 = [i for i in point]
+            z0, y0, x0 = [int(i) for i in point]
+
+
             zmin = int(z0 - patch_z)
             zmax = int(z0 + patch_z)
             ymin = int(y0 - patch_y)
@@ -578,18 +578,20 @@ class InferQWidget2D(QWidget):
 
             # save points and segment area and vis area information in a dictionary
             self._cropped_points[idx] = {
-                'point': point,
+                'id': idx,
+                'point': [z0, y0, x0],
                 "vis_z": vis_z_input,
                 "vis_y": vis_y_input,
                 "vis_x": vis_x_input,
                 "seg_y": seg_y_input,
                 "seg_x": seg_x_input,
+                'ref_chn': int(self.ref_channel_combo.currentText()),
+                'sig_chn': int(self.sig_channel_combo.currentText()),
+                'brain_path': self.brain_dir_input.text(),
+
             }
 
             print(f"add cropped area for point {idx}: {self._cropped_points[idx]}")
-        
-
-        print('all points in cropped is:', self._cropped_points)
 
         self._viewer.add_shapes(
             boxes_2d,
@@ -615,7 +617,7 @@ class InferQWidget2D(QWidget):
         # --- Gather inputs from UI ---
 
         if not self._cropped_points:
-            self.log_output.append("No points added and areas cropped. Please add new points  and crop in the viewer.")
+            self.log_output.append("No points added and areas cropped. Please add new points and crop in the viewer.")
             return
         
 
@@ -1011,7 +1013,7 @@ class InferQWidget2D(QWidget):
 
             cell_count = np.max(cellmask_pad)
 
-            self._viewer_results.add_labels(cellmask_pad, name=f"cell_mask_{cell_count}")
+            self._viewer_results.add_labels(cellmask_pad, name=f"{idx}_MAE_pseudo_{cell_count}")
 
             # add a rectangle for the segmen area
             self._viewer_results.add_shapes(
@@ -1020,13 +1022,25 @@ class InferQWidget2D(QWidget):
             edge_color='red',
             # face_color='red',
             opacity=0.2, 
-            name='fov_box'
+            name='fov_box',
+            face_color='transparent',  # Make the rectangle transparent
             )
+        
+        
+        # save current meta info to a csv file:
+        data = []
+        item_copy = self._cropped_points[idx].copy()
+        data.append(item_copy)
+        df = pd.DataFrame(data)
 
+        if not os.path.exists('./meta_info'):
+            os.makedirs('./meta_info')
 
-        # --- update segmented points ---
-        self._cropped_points = {}
-        print(f"current segmented points is: {self._segemented_points}")
+        df.to_csv('./meta_info/current_points.csv', index=False)
+
+        # # --- update segmented points ---
+        # self._cropped_points = {}
+        # print(f"current segmented points is: {self._segemented_points}")
     
     def run_inference(self):
         """Collect UI parameters and execute the backend inference routine."""

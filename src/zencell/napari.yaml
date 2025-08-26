@@ -42,6 +42,9 @@ contributions:
     - id: zencell.sam_3d
       python_name: zencell:SAMQWidget3D
       title: 3D prompt predictoin
+    - id: zencell.sam_2d
+      python_name: zencell:SAMQWidget2D
+      title: 2D prompt predictoin
   readers:
     - command: zencell.get_reader
       accepts_directories: false
@@ -68,5 +71,7 @@ contributions:
       display_name: 2D Crop
     - command: zencell.sam_3d
       display_name: SAM 3D
+    - command: zencell.sam_2d
+      display_name: SAM 2D
 
       #icon: zencell/_icons/inference.png 

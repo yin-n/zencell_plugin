@@ -10,6 +10,7 @@ from ._inference_3d import InferQWidget3D
 from ._inference_2d import InferQWidget2D
 from ._crop_2d import CropQWidget2D
 from ._sam_3d import SAMQWidget3D
+from ._sam_2d import SAMQWidget2D
 from ._reader import napari_get_reader
 from ._sample_data import make_sample_data
 from ._widget import (
@@ -32,5 +33,6 @@ __all__ = (
     "InferQWidget3D",
     "InferQWidget2D",
     "SAMQWidget3D",
+    "SAMQWidget2D",
     "CropQWidget2D"
 )
